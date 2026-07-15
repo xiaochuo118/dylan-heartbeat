@@ -123,6 +123,15 @@ node wake_up.js
 
 ---
 
+## 📋 更新日志（2026-07-15）
+
+- 🖼️ 多模态默认改为视觉透传：`MULTIMODAL_MODE` 默认使用 `passthrough`，Kelivo 发来的图片 `content` 数组会原样交给支持 OpenAI 兼容视觉格式的上游模型；不支持图片的模型可显式设回 `MULTIMODAL_MODE=text`。
+- 🕰️ 兼容无空格时间戳：`2026-07-15 01:23` 和 `2026-07-1501:23` 都能被 Gateway / wake-up 识别，避免消息排序、时间记忆和唤醒判断失效。
+- 🧭 `/v1/models` 改为读取配置模型：模型列表会返回 `.env` 里的 `MODEL_NAME`，不再固定显示示例模型名。
+- 📔 管理页新增 Wake Diary：`/admin` 可以只读查看 `DIARY_DIR` 下最近的 `.md` 日记文件，方便确认自动日记是否写入。
+- 🧩 修复 Claude / New API 唤醒兼容：wake-up 请求不再全部使用 `system` 消息，避免部分中转站把 messages 抽空后报 `field messages is required`。
+- 🧹 收敛运行日志：默认不再打印完整 Kelivo body、转发 messages、wake prompt、最近聊天记录和模型原文，减少隐私泄漏和日志膨胀风险。
+
 ## 📋 更新日志（2026-07-11）
 
 - 📳 新增 ntfy 推送渠道：`PUSH_PROVIDER=ntfy` 时可用 Android / 桌面 / 自建 ntfy 服务接收主动消息。
