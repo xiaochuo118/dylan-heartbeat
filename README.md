@@ -139,7 +139,7 @@ node wake_up.js
 
 ## 📋 更新日志（2026-06-06）
 
-- 🖼️ 修复 Kelivo 图片/多模态消息处理：默认转换为 `[图片]` 文本占位，也支持视觉模型透传模式。
+- 🖼️ 修复 Kelivo 图片/多模态消息处理：默认把图片消息原样透传给视觉模型，也保留文本占位降级模式。
 - 🔐 优化管理页保存配置流程：改用 `fetch` 提交，补充 HTTP 明文提交提示与 HTTPS 使用建议。
 - 🧯 增强自动唤醒失败保护：模型空回复、Bark Key 缺失、Bark 推送失败时不再误记为已发送。
 - ⚙️ 增加可配置项：`REQUEST_BODY_LIMIT_MB`、`MULTIMODAL_MODE`、`PORT`、`GATEWAY_BASE_URL`、`TIME_ZONE`、`RESTART_COMMAND`。
@@ -210,7 +210,7 @@ NTFY_TAGS=
 DIARY_ENABLED=true
 DIARY_DIR=diary
 REQUEST_BODY_LIMIT_MB=50
-MULTIMODAL_MODE=text
+MULTIMODAL_MODE=passthrough
 DAY_WAKE_AFTER_MINUTES=60
 NIGHT_WAKE_AFTER_MINUTES=120
 DAY_CHECK_INTERVAL_MINUTES=10
@@ -233,8 +233,8 @@ ADMIN_PASSWORD=你的强密码
 图片消息说明：
 
 - `REQUEST_BODY_LIMIT_MB`：Gateway 可接收的请求体大小，默认 `50`。Kelivo 发送 base64 图片时请求会明显变大，如果仍然报 `413 Payload Too Large`，可以继续调高。
-- `MULTIMODAL_MODE=text`：默认兼容模式。图片会被转换成 `[图片]` 文本占位继续发给上游模型，避免不支持视觉的模型或中转站报错。
-- `MULTIMODAL_MODE=passthrough`：视觉透传模式。仅当你的上游模型和 API 地址支持 OpenAI 兼容图片消息时使用，Gateway 会保留 Kelivo 原始的多模态 `content` 数组。
+- `MULTIMODAL_MODE=passthrough`：默认视觉透传模式。Gateway 会保留 Kelivo 原始的多模态 `content` 数组，直接交给支持 OpenAI 兼容图片消息的上游模型。
+- `MULTIMODAL_MODE=text`：文本占位降级模式。图片会被转换成 `[图片]` 继续发给上游，适合不支持视觉的模型或中转站。
 
 ### 时区配置
 

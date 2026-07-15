@@ -34,8 +34,10 @@ function readBooleanEnv(key, fallback = false) {
 // 多模态消息处理
 // ========================
 function shouldForwardMultimodalContent() {
-  const mode = (process.env.MULTIMODAL_MODE || "text").trim().toLowerCase();
-  return mode === "passthrough" || mode === "vision" || mode === "true";
+  // 批注 2026-07-15：默认把 Kelivo 的图片 content 数组原样交给视觉模型；
+  // 如果上游不是多模态模型，部署者仍可显式设 MULTIMODAL_MODE=text 退回旧的 [图片] 占位模式。
+  const mode = (process.env.MULTIMODAL_MODE || "passthrough").trim().toLowerCase();
+  return !["text", "plain", "placeholder", "false", "off", "0"].includes(mode);
 }
 
 function isDataImageUrl(value) {
@@ -168,17 +170,26 @@ function saveTimeline(messages) {
 // ========================
 // 提取时间戳（支持多种格式）
 // ========================
+function parseTimestampLabel(value) {
+  const text = String(value || "");
+  const match = text.match(/（?\s*(\d{4})([-/])(\d{1,2})\2(\d{1,2})(?:[ T]?)(\d{1,2})[:：](\d{2})/);
+  if (!match) return null;
+  const [, yyyy, , month, day, hour, minute] = match;
+  const normalized = `${yyyy}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")} ${String(hour).padStart(2, "0")}:${minute}`;
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function stripLeadingTimestamp(content) {
+  // 批注 2026-07-15：兼容 Kelivo 有时把日期和时间贴在一起的前缀；
+  // 旧格式 "YYYY-MM-DD HH:mm" 继续保留，新格式 "YYYY-MM-DDHH:mm" 不再导致时间记忆/排序失效。
+  return String(content || "")
+    .replace(/^（?\s*\d{4}[-/]\d{1,2}[-/]\d{1,2}(?:[ T]?)\d{1,2}[:：]\d{2}[）\s]*/, "")
+    .trim();
+}
+
 function extractTimestamp(content) {
-  if (!content || typeof content !== "string") return null;
-  let match = content.match(/（?(\d{4}-\d{2}-\d{2} \d{2}:\d{2})/);
-  if (match) return new Date(match[1]);
-  match = content.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2})/);
-  if (match) return new Date(match[1]);
-  match = content.match(/（(\d{4}\/\d{1,2}\/\d{1,2} \d{2}:\d{2})）/);
-  if (match) return new Date(match[1]);
-  match = content.match(/(\d{4}\/\d{1,2}\/\d{1,2} \d{2}:\d{2})/);
-  if (match) return new Date(match[1]);
-  return null;
+  return parseTimestampLabel(content);
 }
 
 // ========================
@@ -201,13 +212,7 @@ function makeFingerprint(msg) {
 
 function makeFingerprintStripped(msg) {
   const raw = normalizeContentToText(msg.content);
-  let content = raw.trim();
-  content = content
-    .replace(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}\s*/, "")
-    .replace(/^\d{4}\/\d{1,2}\/\d{1,2} \d{2}:\d{2}\s*/, "")
-    .replace(/^（\d{4}[-\/]\d{1,2}[-\/]\d{1,2} \d{2}:\d{2}[）\s]*/, "")
-    .trim()
-    .slice(0, 150);
+  const content = stripLeadingTimestamp(raw).slice(0, 150);
   return `${msg.role}::${content}`;
 }
 
@@ -501,8 +506,8 @@ app.post("/v1/chat/completions", async (req, reply) => {
     const finalTimeline = buildTimeline(kelivoMessages, tsDB);
     saveTimeline(finalTimeline);
 
-    // Kelivo 发图时 content 常是数组。默认转为文本占位，避免非视觉模型/中转站报错。
-    // 如上游支持 OpenAI 兼容视觉格式，可设置 MULTIMODAL_MODE=passthrough 原样转发。
+    // Kelivo 发图时 content 常是数组。默认原样透传给视觉模型；
+    // 如上游不支持图片，可设置 MULTIMODAL_MODE=text 退回文本占位。
     const llmMessages = kelivoMessages
       .map(prepareMessageForLLM)
       .filter(Boolean);

@@ -329,13 +329,25 @@ function shouldWake(lastUserTime) {
   return diffMinutes >= getWakeAfterMinutes(now);
 }
 
+function parseTimelineTimestamp(value) {
+  const text = String(value || "");
+  const match = text.match(/（?\s*(\d{4})([-/])(\d{1,2})\2(\d{1,2})(?:[ T]?)(\d{1,2})[:：](\d{2})/);
+  if (!match) return null;
+  const [, yyyy, , month, day, hour, minute] = match;
+  const normalized = `${yyyy}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")} ${String(hour).padStart(2, "0")}:${minute}`;
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function getLastUserTime(messages) {
   const reversed = [...messages].reverse();
   for (const msg of reversed) {
     if (msg.role === "user") {
       const content = normalizeContentToText(msg.content);
-      const match = content.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2})/);
-      if (match) return new Date(match[1]);
+      // 批注 2026-07-15：兼容 Kelivo 时间前缀 "YYYY-MM-DDHH:mm"；
+      // 旧的 "YYYY-MM-DD HH:mm" 仍然可用，避免无空格时间导致 wake-up 误判没有用户时间。
+      const parsed = parseTimelineTimestamp(content);
+      if (parsed) return parsed;
     }
   }
   return null;
