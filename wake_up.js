@@ -418,11 +418,18 @@ async function runWakeUp() {
   const messages = loadTimelineMessages();
   if (!messages) return;
 
-  const lastUserTime = getLastUserTime(messages);
+    let lastUserTime = getLastUserTime(messages);
   if (!lastUserTime) {
-    console.log("未找到用户时间");
-    return;
+    try {
+      const stat = fs.statSync(TIMELINE_PATH);
+      lastUserTime = stat.mtime;
+      console.log("消息中未找到时间前缀，使用文件修改时间:", lastUserTime.toISOString());
+    } catch {
+      console.log("未找到用户时间");
+      return;
+    }
   }
+
 
   const now = new Date();
   const diffMinutes = Math.floor((now - lastUserTime) / 1000 / 60);
