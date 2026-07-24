@@ -561,11 +561,16 @@ app.post("/v1/chat/completions", async (req, reply) => {
       if (!tsDB[fpStripped]) { tsDB[fpStripped] = ts.toISOString(); tsDBDirty = true; }
     }
     if (tsDBDirty) saveTimestampDB(tsDB);
-    // 写入 Supabase
+       // 写入 Supabase
     const lastMsg = kelivoMessages[kelivoMessages.length - 1];
+    console.log("Supabase 写入检查:", lastMsg?.role, "内容长度:", normalizeContentToText(lastMsg?.content).length);
     if (lastMsg && (lastMsg.role === "user" || lastMsg.role === "assistant")) {
       const textContent = normalizeContentToText(lastMsg.content);
-      saveMessage(lastMsg.role, textContent).catch(() => {});
+      saveMessage(lastMsg.role, textContent).then(() => {
+        console.log("Supabase 写入成功:", lastMsg.role);
+      }).catch((err) => {
+        console.error("Supabase 写入失败:", err.message);
+      });
     }
 
     const finalTimeline = buildTimeline(kelivoMessages, tsDB);
