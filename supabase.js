@@ -8,7 +8,9 @@ let supabase = null;
 function getSupabase() {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
   if (!supabase) {
-    supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+    supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+      realtime: { enabled: false }
+    });
   }
   return supabase;
 }
@@ -59,3 +61,4 @@ async function getRecentMessages(limit = 30) {
 }
 
 module.exports = { getSupabase, saveMessage, getLastUserTime, getRecentMessages };
+
