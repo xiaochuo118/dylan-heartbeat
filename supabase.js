@@ -1,41 +1,41 @@
-const { createClient } = require("@supabase/supabase-js");
-
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
-let supabase = null;
+function getHeaders() {
+  return {
+    "apikey": SUPABASE_KEY,
+    "Authorization": `Bearer ${SUPABASE_KEY}`,
+    "Content-Type": "application/json",
+    "Prefer": "return=minimal"
+  };
+}
 
-function getSupabase() {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
-  if (!supabase) {
-    supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-      realtime: { enabled: false }
-    });
-  }
-  return supabase;
+function isConfigured() {
+  return !!(SUPABASE_URL && SUPABASE_KEY);
 }
 
 async function saveMessage(role, content) {
-  const sb = getSupabase();
-  if (!sb) return;
+  if (!isConfigured()) return;
   try {
-    await sb.from("messages").insert({ role, content });
+    await fetch(`${SUPABASE_URL}/rest/v1/messages`, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify({ role, content })
+    });
   } catch (err) {
     console.error("Supabase 写入失败:", err.message);
   }
 }
 
 async function getLastUserTime() {
-  const sb = getSupabase();
-  if (!sb) return null;
+  if (!isConfigured()) return null;
   try {
-    const { data, error } = await sb
-      .from("messages")
-      .select("created_at")
-      .eq("role", "user")
-      .order("created_at", { ascending: false })
-      .limit(1);
-    if (error || !data || data.length === 0) return null;
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/messages?role=eq.user&order=created_at.desc&limit=1&select=created_at`,
+      { headers: getHeaders() }
+    );
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return null;
     return new Date(data[0].created_at);
   } catch (err) {
     console.error("Supabase 读取失败:", err.message);
@@ -44,15 +44,14 @@ async function getLastUserTime() {
 }
 
 async function getRecentMessages(limit = 30) {
-  const sb = getSupabase();
-  if (!sb) return [];
+  if (!isConfigured()) return [];
   try {
-    const { data, error } = await sb
-      .from("messages")
-      .select("role, content, created_at")
-      .order("created_at", { ascending: false })
-      .limit(limit);
-    if (error || !data) return [];
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/messages?order=created_at.desc&limit=${limit}&select=role,content,created_at`,
+      { headers: getHeaders() }
+    );
+    const data = await res.json();
+    if (!Array.isArray(data)) return [];
     return data.reverse();
   } catch (err) {
     console.error("Supabase 读取失败:", err.message);
@@ -60,5 +59,5 @@ async function getRecentMessages(limit = 30) {
   }
 }
 
-module.exports = { getSupabase, saveMessage, getLastUserTime, getRecentMessages };
+module.exports = { saveMessage, getLastUserTime, getRecentMessages };
 
