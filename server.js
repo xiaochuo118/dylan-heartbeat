@@ -386,6 +386,7 @@ function appendSpecialEvent(content) {
   for (const msg of timeline) {
     if (msg.position && msg.position > maxPos) maxPos = msg.position;
   }
+  saveMessage("assistant", content).catch(() => {});
   const newEvent = { role: "assistant", content, position: maxPos + 0.5 };
   timeline.push(newEvent);
   saveTimeline(timeline);
