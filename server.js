@@ -585,6 +585,39 @@ app.post("/v1/chat/completions", async (req, reply) => {
         return 0;
       })
     );
+    // 从 Supabase 读取推送事件并注入上下文
+    const { getRecentMessages } = require("./supabase");
+    const dbEvents = await getRecentMessages(50);
+    const supabaseEvents = (dbEvents || [])
+      .filter(m => m.role === "assistant" && m.content && m.content.includes("推送"))
+      .map(m => ({ role: "assistant", content: m.content }));
+    
+    if (supabaseEvents.length > 0) {
+      for (const event of supabaseEvents) {
+        const idx = llmMessages.findIndex(msg => msg.content === event.content);
+        if (idx === -1) {
+          llmMessages.push(event);
+        }
+      }
+      console.log("从 Supabase 注入推送事件数量:", supabaseEvents.length);
+    }
+
+    console.log("本次注入的特殊事件数量:", oldEvents.length);
+    
+    for (const event of oldEvents) {
+      const eventTime = extractTimestampWithMemory(event, tsDB);
+      if (!eventTime) { llmMessages.push(event); continue; }
+      let inserted = false;
+      for (let i = 0; i < llmMessages.length; i++) {
+        const msgTime = extractTimestampWithMemory(llmMessages[i], tsDB);
+        if (msgTime && msgTime >= eventTime) {
+          llmMessages.splice(i, 0, event);
+          inserted = true;
+          break;
+        }
+      }
+      if (!inserted) llmMessages.push(event);
+    }
 
     console.log("本次注入的特殊事件数量:", oldEvents.length);
 
