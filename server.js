@@ -3,6 +3,7 @@ require("dotenv").config();
 const Fastify = require("fastify");
 const fs = require("fs-extra");
 const path = require("path");
+const { saveMessage } = require("./supabase");
 
 const DEFAULT_BODY_LIMIT_MB = 50;
 
@@ -559,6 +560,12 @@ app.post("/v1/chat/completions", async (req, reply) => {
       if (!tsDB[fpStripped]) { tsDB[fpStripped] = ts.toISOString(); tsDBDirty = true; }
     }
     if (tsDBDirty) saveTimestampDB(tsDB);
+    // 写入 Supabase
+    const lastMsg = kelivoMessages[kelivoMessages.length - 1];
+    if (lastMsg && (lastMsg.role === "user" || lastMsg.role === "assistant")) {
+      const textContent = normalizeContentToText(lastMsg.content);
+      saveMessage(lastMsg.role, textContent).catch(() => {});
+    }
 
     const finalTimeline = buildTimeline(kelivoMessages, tsDB);
     saveTimeline(finalTimeline);

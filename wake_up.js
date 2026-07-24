@@ -2,6 +2,7 @@ require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
 const { buildNtfyPayload } = require("./ntfy_priority");
+const { getLastUserTime: getLastUserTimeFromDB, getRecentMessages } = require("./supabase");
 
 const TIMELINE_PATH = path.join(__dirname, "enhanced_messages.json");
 const PORT = Number(process.env.PORT) || 3000;
@@ -415,20 +416,47 @@ async function runWakeUp() {
   console.log("开始自动唤醒");
   console.log("==========================\n");
 
-  const messages = loadTimelineMessages();
-  if (!messages) return;
+    // 优先从 Supabase 获取最后用户时间
+  let lastUserTime = await getLastUserTimeFromDB();
+  let messages = null;
 
-    let lastUserTime = getLastUserTime(messages);
-  if (!lastUserTime) {
-    try {
-      const stat = fs.statSync(TIMELINE_PATH);
-      lastUserTime = stat.mtime;
-      console.log("消息中未找到时间前缀，使用文件修改时间:", lastUserTime.toISOString());
-    } catch {
-      console.log("未找到用户时间");
+  if (lastUserTime) {
+    console.log("从 Supabase 获取到用户最后时间:", lastUserTime.toISOString());
+  } else {
+    // 回退到本地文件
+    messages = loadTimelineMessages();
+    if (!messages) {
+      console.log("未找到用户时间（Supabase 和本地文件均无数据）");
       return;
     }
+    lastUserTime = getLastUserTime(messages);
+    if (!lastUserTime) {
+      try {
+        const stat = fs.statSync(TIMELINE_PATH);
+        lastUserTime = stat.mtime;
+        console.log("消息中未找到时间前缀，使用文件修改时间:", lastUserTime.toISOString());
+      } catch {
+        console.log("未找到用户时间");
+        return;
+      }
+    }
   }
+
+  // 如果本地没消息，从 Supabase 读最近记录
+  if (!messages) {
+    const dbMessages = await getRecentMessages(30);
+    if (dbMessages.length > 0) {
+      messages = dbMessages.map(m => ({ role: m.role, content: m.content || "" }));
+      console.log("从 Supabase 读取到", messages.length, "条历史消息");
+    } else {
+      messages = loadTimelineMessages();
+      if (!messages) {
+        console.log("无可用历史消息");
+        return;
+      }
+    }
+  }
+
 
 
   const now = new Date();
